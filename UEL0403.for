@@ -96,6 +96,7 @@ c
          do j = 1, nnode
             co_de(i,j)=coords(i,j)+U(3.d0*(j-1.d0)+i)
             disp(i,j)=U(3.d0*(j-1.d0)+i)
+            disp_diff = DU(3.d0*(j-1.d0)+i)
          end do
       end do
 c
