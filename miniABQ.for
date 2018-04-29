@@ -77,8 +77,8 @@
       DTIME = 0.01D0
       MAXINC = 1001
       on_shear1 = 10
-      on_shear2 = 1     
-      on_normal = 10
+      on_shear2 = 10     
+      on_normal = 1
 !
       !original coordinates
       COORDS(1,1) = 0.d0
@@ -106,12 +106,12 @@
       COORDS(3,7) = 0.001d0
       COORDS(3,8) = 0.001d0
 !
-!      WRITE(7,*) 'Time,Disp1,Stress1,Disp2,Stress2,Disp3,Stress3,
-!     1 Dispm,Stressm' 
-!      WRITE(7,15) TIME(1),',', 0,',', 0,',', 0,',', 0,',', 0,',', 0,
-!     1 ',', 0,',', 0
-      WRITE(7,*) 'displacement,ex,ey,exy,e1,e2,e12' 
-      WRITE(7,15) TIME(1),',', 0,',', 0,',', 0,',', 0,',', 0,',', 0     
+      WRITE(7,*) 'Time,xstress,Stress1,Disp2,Stress2,Disp3,Stress3,
+     1 Dispm,Stressm' 
+      WRITE(7,15) TIME(1),',', 0,',', 0,',', 0,',', 0,',', 0,',', 0,
+     1 ',', 0,',', 0
+!      WRITE(7,*) 'displacement,ex,ey,exy,e1,e2,e12' 
+!      WRITE(7,15) TIME(1),',', 0,',', 0,',', 0,',', 0,',', 0,',', 0  
 !
 !     LOOPING FOR UMAT CALLER
       DO KINC=2,MAXINC
@@ -152,14 +152,14 @@
       TIME(1) = TIME(1) + DTIME
 !  
 !  
-!        WRITE(7,15) TIME(1),',', sep_m1,',',Tm1,',', sep_m2,',',Tm2,','
-!     1   , sep_m3,',',Tm3,',', sep_m,',',Tm
-!15    FORMAT (F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6
-!     1 ,A,F12.6,A,F12.6)
-      displacement = 0.00001D0 * (KINC-1)
-        WRITE(7,15) displacement,',', ex,',',ey,',', exy,',',e1,','
-     1   , e2,',',e12
-15    FORMAT (F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6)
+        WRITE(7,15) TIME(1),',', xstress,',',Tm1,',', sep_m2,',',Tm2,','
+     1   , sep_m3,',',Tm3,',', sep_m,',',Tm
+15    FORMAT (F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6
+     1 ,A,F12.6,A,F12.6)
+!      displacement = 0.00001D0 * (KINC-1)
+!        WRITE(7,15) displacement,',', ex,',',ey,',', exy,',',e1,','
+!     1   , e2,',',e12
+!15    FORMAT (F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6,A,F12.6)
 !
       END DO
 !

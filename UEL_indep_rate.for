@@ -17,23 +17,26 @@ c
      3 JDLTYP(MDLOAD,*),ADLMAG(MDLOAD,*),DDLMAG(MDLOAD,*),
      4 PREDEF(2,NPREDF,NNODE),LFLAGS(*),JPROPS(*)
 c
-      DIMENSION ds1(4),ds2(4),dn(4),Trac(MCRD,NRHS),
-     1 Trac_Jacob(MCRD,MCRD),R(MCRD,MCRD),coord_l(MCRD,NNODE),
-     2 GP_coord(2),sf(4),B(MCRD,NDOFEL),co_de_m(3,4),
-     3 B_t(NDOFEL,MCRD), Transformation_M(NDOFEL,NDOFEL),
-     4 Transformation_M_T(NDOFEL,NDOFEL),temp1(MCRD,NDOFEL)
+      DIMENSION ds1(4),ds2(4),dn(4),dds1(4),dds2(4),ddn(4),
+     1 Trac(MCRD,NRHS),
+     2 Trac_Jacob(MCRD,MCRD),R(MCRD,MCRD),coord_l(MCRD,NNODE),
+     3 GP_coord(2),sf(4),B(MCRD,NDOFEL),co_de_m(3,4),
+     4 B_t(NDOFEL,MCRD), Transformation_M(NDOFEL,NDOFEL),
+     5 Transformation_M_T(NDOFEL,NDOFEL),temp1(MCRD,NDOFEL)
 c
       DIMENSION stiff_l(NDOFEL,NDOFEL),temp2(NDOFEL,NDOFEL),
      1 stiff_g(NDOFEL,NDOFEL),residual_l(NDOFEL,NRHS),
      2 residual_g(NDOFEL,NRHS),aJacob_M(2,3),delu_loc_gp(mcrd),
      3 co_de(mcrd,nnode), disp(mcrd,nnode), disp_l(mcrd,nnode),
      4 dxdxi(2,2),dxidx(2,2), dNdxi(4,2), dNdx(4,2), uv(2,4), 
-     5 uv_xy(2,2)
+     5 uv_xy(2,2), ddisp(mcrd,nnode), ddisp_l(mcrd,nnode),
+     6 ddelu_loc_gp(mcrd)
 c
       DOUBLE PRECISION G_fn, G_ft, f_tn, f_tt, K_n, K_t,
      1 sep_n0, sep_nf, sep_t0, sep_tf, tmax1, tmax2, pmax, opn, 
      2 opt1,opt2,tmax,c_r,c_s,detdxdxi,eps_x,eps_y,eps_xy,up_eps_vm,
-     3 up_sigma,bt_sigma,eps_11,eps_12,eps_21,eps_22,bt_eps_vm
+     3 up_sigma,bt_sigma,eps_11,eps_12,eps_21,eps_22,bt_eps_vm,
+     4 dopn,dopt1,dopt2
 c
 c Define Inputs========================================================
 c 
@@ -57,6 +60,9 @@ c
       call k_vector_zero(ds1,4)
       call k_vector_zero(ds2,4)
       call k_vector_zero(dn,4)
+      call k_vector_zero(dds1,4)
+      call k_vector_zero(dds2,4)
+      call k_vector_zero(ddn,4)      
       call k_matrix_zero(Trac,mcrd,nrhs)
       call k_matrix_zero(Trac_Jacob,mcrd,mcrd)
       call k_matrix_zero(R,mcrd,mcrd)
@@ -78,7 +84,9 @@ c
       call k_matrix_zero(amatrx,ndofel,ndofel)
       call k_matrix_zero(co_de,mcrd,nnode)
       call k_matrix_zero(disp,mcrd,nnode)
-      call k_matrix_zero(disp_l,mcrd,nnode)      
+      call k_matrix_zero(ddisp,mcrd,nnode)
+      call k_matrix_zero(disp_l,mcrd,nnode)
+      call k_matrix_zero(ddisp_l,mcrd,nnode)
       a_Jacob=0.d0
 c
 c Determine Inputs to Cohesive Model===================================
@@ -96,6 +104,7 @@ c
          do j = 1, nnode
             co_de(i,j)=coords(i,j)+U(3.d0*(j-1.d0)+i)
             disp(i,j)=U(3.d0*(j-1.d0)+i)
+            ddisp(i,j)=DU(3.d0*(j-1.d0)+i,1)
          end do
       end do
 c
@@ -111,7 +120,7 @@ c get the local coordinate and local displacement======================
 c
       call k_local_coordinates(gpt,co_de,R,coord_l,Transformation_M,
      & Transformation_M_T,a_Jacob,aJacob_M,coords,u,ndofel,nnode,
-     & mcrd, SVARS,disp,disp_l)   
+     & mcrd, SVARS,disp,disp_l,ddisp,ddisp_l)   
 c
 c Compute shear and normal local separation(opening displacments)======
 c 
@@ -121,7 +130,10 @@ c
 !         dn(j) =coord_l(3,j+4)-coord_l(3,j)
          ds1(j)=disp_l(1,j+4)-disp_l(1,j)
          ds2(j)=disp_l(2,j+4)-disp_l(2,j)
-         dn(j) =disp_l(3,j+4)-disp_l(3,j)         
+         dn(j) =disp_l(3,j+4)-disp_l(3,j) 
+         dds1(j)=ddisp_l(1,j+4)-ddisp_l(1,j)
+         dds2(j)=ddisp_l(2,j+4)-ddisp_l(2,j)
+         ddn(j) =ddisp_l(3,j+4)-ddisp_l(3,j)         
       end do
 !     WRITE(16,*) coord_l
 c
@@ -130,6 +142,7 @@ c
          call k_shape_fun(i,sf)
 c
          call k_vector_zero(delu_loc_gp,mcrd)
+         call k_vector_zero(ddelu_loc_gp,mcrd)         
 c
 c Determine shear and normal separation (opening displamenets) at integration points==============================
 c         
@@ -137,6 +150,9 @@ c
             delu_loc_gp(1)=delu_loc_gp(1)+ds1(j)*sf(j)
             delu_loc_gp(2)=delu_loc_gp(2)+ds2(j)*sf(j)
             delu_loc_gp(3)=delu_loc_gp(3)+ dn(j)*sf(j)
+            ddelu_loc_gp(1)=ddelu_loc_gp(1)+dds1(j)*sf(j)
+            ddelu_loc_gp(2)=ddelu_loc_gp(2)+dds2(j)*sf(j)
+            ddelu_loc_gp(3)=ddelu_loc_gp(3)+ddn(j)*sf(j)            
          end do
          
 !        if (i .EQ. 1) then
@@ -146,6 +162,9 @@ c
          opt1=ABS(delu_loc_gp(1))
          opt2=ABS(delu_loc_gp(2))
          opn=delu_loc_gp(3)
+         dopt1=ABS(ddelu_loc_gp(1))
+         dopt2=ABS(ddelu_loc_gp(2))
+         dopn=ddelu_loc_gp(3)         
 !        WRITE(16,*) opt1,opt2,opn
 c
 c update the max separation of the current step to calculate interface damage==========
@@ -335,7 +354,7 @@ c call cohesive law
       call k_cohesive_law(Trac,Trac_Jacob,G_fn,G_ft,f_tn,f_tt,K_n,K_t,
      & pmax,tmax,tmax1,tmax2,delu_loc_gp,sep_n0,sep_nf,sep_t0,sep_tf,
      & mcrd, nrhs, SVARS,Tt1_old,Tt2_old,Tn_old,Et1_old,Et2_old,En_old,
-     & DTIME,up_eps_vm,bt_eps_vm)
+     & DTIME,up_eps_vm,bt_eps_vm,dopn,dopt1,dopt2)
 !
       if (gpt.eq.1) then
       xstress = Trac(3,1)
@@ -481,7 +500,7 @@ c======================================================================
       subroutine k_cohesive_law(T,T_d,G_fn,G_ft,f_tn,f_tt,K_n,K_t,
      & pmax,tmax,tmax1,tmax2,delu,sep_n0,sep_nf,sep_t0,sep_tf,
      & mcrd, nrhs, SVARS,Tt1_old,Tt2_old,Tn_old,Et1_old,Et2_old,En_old,
-     & DTIME,up_eps_vm,bt_eps_vm)
+     & DTIME,up_eps_vm,bt_eps_vm,dopn,dopt1,dopt2)
      
       INCLUDE 'ABA_PARAM.INC'
       dimension T(mcrd,nrhs),T_d(mcrd,mcrd),delu(mcrd),SVARS(40)
@@ -505,7 +524,7 @@ c
       if ((up_eps_vm .LE. eps_max).or.(bt_eps_vm .LE. eps_max)) then
      
          if (tmax1 .LE. sep_t0) then
-             Tt1=K_t*popt1
+             Tt1=K_t*popt1+K_t*dopt1/DTIME
              Kt1=K_t
          else if (tmax1 .GT. sep_t0) Then
              D_t1=sep_tf*(tmax1-sep_t0)/tmax1/(sep_tf-sep_t0)
@@ -520,16 +539,16 @@ c
                 Kn=ZERO
              end if
              if ((popt1.lt.tmax1).AND.(D_t1.lt.DMGMAX)) then
-                Tt1= (ONE-D_t1)*K_t*popt1
+                Tt1= (ONE-D_t1)*K_t*popt1+(ONE-D_t1)*K_t*dopt1/DTIME
                 Kt1 = (ONE-D_t1)*K_t
              else if ((popt1.eq.tmax1).AND.(D_t1.lt.DMGMAX)) then
-                Tt1=(ONE-D_t1)*K_t*popt1
+                Tt1=(ONE-D_t1)*K_t*popt1+(ONE-D_t1)*K_t*dopt1/DTIME
                 Kt1=(D_t1-sep_tf/(sep_tf-sep_t0))*K_t+(ONE-D_t1)*K_t   
              end if 
          end if
 c
          if (tmax2 .LE. sep_t0) then
-             Tt2=K_t*popt2
+             Tt2=K_t*popt2+K_t*dopt2/DTIME
              Kt2=K_t
          else if (tmax2 .GT. sep_t0) Then
              D_t2=sep_tf*(tmax2-sep_t0)/tmax2/(sep_tf-sep_t0)
@@ -544,21 +563,21 @@ c
                 Kn=ZERO
              end if
              if ((popt2.lt.tmax2).AND.(D_t2.lt.DMGMAX)) then
-                Tt2= (ONE-D_t2)*K_t*popt2
+                Tt2= (ONE-D_t2)*K_t*popt2+(ONE-D_t2)*K_t*dopt2/DTIME
                 Kt2 = (ONE-D_t2)*K_t
              else if ((popt2.eq.tmax2).AND.(D_t2.lt.DMGMAX)) then
-                Tt2=(ONE-D_t2)*K_t*popt2
+                Tt2=(ONE-D_t2)*K_t*popt2+(ONE-D_t2)*K_t*dopt2/DTIME
                 Kt2=(D_t2-sep_tf/(sep_tf-sep_t0))*K_t+(ONE-D_t2)*K_t   
              end if 
          end if
 c
         if (popn .LE. ZERO) then
              Kn=K_n
-             Tn=Kn*popn
+             Tn=K_n*popn+K_n*dopn/DTIME
         end if
         if (popn .GE. ZERO) then
          if (pmax .LE. sep_n0) then
-             Tn=K_n*popn
+             Tn=K_n*popn+K_n*dopn/DTIME
              Kn=K_n
          else if (pmax .GT. sep_n0) Then
              D_n=sep_nf*(pmax-sep_n0)/pmax/(sep_nf-sep_n0)
@@ -573,10 +592,10 @@ c
                 Kt2=ZERO
              end if
              if ((popn.lt.pmax).AND.(D_n.lt.DMGMAX)) then
-                Tn= (ONE-D_n)*K_n*popn
+                Tn= (ONE-D_n)*K_n*popn+(ONE-D_n)*K_n*dopn/DTIME
                 Kn = (ONE-D_n)*K_n
              else if ((popn.eq.pmax).AND.(D_n.lt.DMGMAX)) then
-                Tn=(ONE-D_n)*K_n*popn
+                Tn= (ONE-D_n)*K_n*popn+(ONE-D_n)*K_n*dopn/DTIME
                 Kn=(D_n-sep_nf/(sep_nf-sep_n0))*K_n+(ONE-D_n)*K_n   
              end if 
          end if
@@ -619,13 +638,14 @@ c=====================================================================
       subroutine k_local_coordinates(gpt,co_de,R,coord_l,
      1 Transformation_M,
      & Transformation_M_T,a_Jacob,aJacob_M,coords,u,ndofel,nnode,
-     & mcrd, SVARS,disp,disp_l)
+     & mcrd, SVARS,disp,disp_l,ddisp,ddisp_l)
       INCLUDE 'ABA_PARAM.INC'
       dimension R(mcrd,mcrd),coord_l(mcrd,nnode),aJacob_M(2,3),
      & Transformation_M(ndofel,ndofel),coords(mcrd,nnode),
      & Transformation_M_T(ndofel,ndofel),u(ndofel),
      & co_de(mcrd,nnode), co_de_m(3,4),SFD(2,4),SVARS(40),
-     & disp(mcrd,nnode), disp_l(mcrd,nnode)
+     & disp(mcrd,nnode), disp_l(mcrd,nnode),
+     1 ddisp(mcrd,nnode), ddisp_l(mcrd,nnode)
        DOUBLE PRECISION x1, x2, x3, x4, y1, y2, y3, y4, y5, y6, z1, z2,
      & z3, z4
 c
@@ -782,6 +802,15 @@ c
      & +R(3,3)*disp(3,i))
       end do      
 c    
+      do i = 1, nnode
+         ddisp_l(1,i)=(R(1,1)*ddisp(1,i)+R(1,2)*ddisp(2,i)
+     & +R(1,3)*ddisp(3,i))
+         ddisp_l(2,i)=(R(2,1)*ddisp(1,i)+R(2,2)*ddisp(2,i)
+     & +R(2,3)*ddisp(3,i))
+         ddisp_l(3,i)=(R(3,1)*ddisp(1,i)+R(3,2)*ddisp(2,i)
+     & +R(3,3)*ddisp(3,i))
+      end do      
+c
       return
       end
 c======================================================================
